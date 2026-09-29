@@ -1,14 +1,16 @@
-![Comic about liking cats and lingering on scary snakes, while a feed mistakes both signals for wanting more](docs/relevance-comic.png)
-
 # Relevance
 
-**Stop blaming society. Your Feed. Your Call.**
+<img src="docs/relevance-button.png" alt="Relevance thumbstick: Like above, Dislike below, Less to the left, and More to the right" width="240">
+
+Relevance is an experimental proof of concept for a simple, intuitive relevance button in place of emoji reactions or likes.
 
 We like cats 👍. We may stare even longer at a scary snake from a safe distance. A feed that treats a like or a long look as “show me more” can confuse our reactions with our wishes. Soon, we see more of something we never chose.
 
-**What about real Relevance?** Relevance is an experimental proof of concept for a simple, intuitive relevance button in place of emoji reactions or likes.
+![Comic about liking cats and lingering on scary snakes, while a feed mistakes both signals for wanting more](docs/relevance-comic.png)
 
-<img src="docs/relevance-button.png" alt="Relevance thumbstick: Like above, Dislike below, Less to the left, and More to the right" width="240">
+**Stop blaming society. Your Feed. Your Call.**
+
+**What about real Relevance?**
 
 A continuous thumbstick lets you say both **how you feel** and **whether you want more or less** of a post. Those answers are independent. You can like something and want less of it, or dislike something and want more. A separate **Wider reach** opinion asks whether others might benefit from seeing it; it does not change your personal feed.
 
@@ -127,4 +129,4 @@ npm test
 
 Touch checks use browser emulation, not a physical-device or screen-reader certification.
 
-The opening comic was created with OpenAI image generation; its [prompt is included](docs/comic-prompt.txt). The example screen is captured from the running prototype using fictional demo posts.
+The comic was created with OpenAI image generation; its [prompt is included](docs/comic-prompt.txt). The example screen is captured from the running prototype using fictional demo posts.
