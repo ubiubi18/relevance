@@ -12,7 +12,7 @@ We like cats 👍. We may stare even longer at a scary snake from a safe distanc
 
 **What about real Relevance?**
 
-A continuous thumbstick lets you say both **how you feel** and **whether you want more or less** of a post. Those answers are independent—but now both are at your fingertip.
+A continuous thumbstick lets you say both **how you feel** and **whether you want more or less** of a post. Those answers are independent—but now both are at the same fingertip.
 
 <img src="docs/example-screen.png" alt="Relevance demo with a fictional flood-response post, Dislike + More selected, a separate Yes vote for wider reach, and the reranked Up next feed" width="900" style="max-width: 100%; height: auto;">
 
