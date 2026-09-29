@@ -1,0 +1,105 @@
+# Relevance
+
+A local, dependency-free DevDay proof of concept: real public Bluesky posts, a continuous two-axis thumbstick, and a feed that responds to your explicit choices. Includes a snapshot of more than 3,000 real posts across 22 topics, plus nine fictional examples. No account, API key, or build step.
+
+## Run
+
+Requires Node.js 20 or later. From this folder:
+
+```sh
+npm start
+```
+
+Open **http://localhost:4173/**. Stop with **Ctrl+C**. If the port is busy:
+
+```sh
+PORT=4174 npm start
+```
+
+The server listens on this computer only. The included JSON snapshot works without fetching again; images load from Bluesky's CDN and require internet access. Use browser device emulation for phone sizes.
+
+## Try it
+
+- Choose **Bluesky** or **Example posts**, then **All topics** or a specific topic.
+- **Search loaded posts** filters post text, titles, and authors as you type. Multiple terms must all match, regardless of case. Search combines with the topic filter; **×** clears it. It searches the local collection and does not send your query or change your feed preferences.
+- Slide down/right for **Dislike + More**, or up/left for **Like + Less**. The preview follows continuously. Releasing saves, briefly pulses the stick, and immediately reranks **Up next**. **Undo** reverses the latest change.
+- **Longest view** records the longest uninterrupted view of a post, up to 10 seconds by default. At least half of its content (or half the viewport for a tall post) must remain visible while the page is visible and focused. Scrolling away, switching posts, hiding the tab, or losing focus ends that interval; short revisits do not accumulate. The seconds are an interest proxy, not proof of attention.
+- **More from what I…** selects Like, Dislike, Both, or Neutral. It chooses which positive More responses count; Less always counts. Both includes all feelings, including neutral. The time cap (1–60 seconds), maximum weight (1–5×), and preference fade (1–365 days, default 14) are editable under **How your mix works**.
+- **Next post** opens the highest-scoring unvisited post. **Show more posts** expands the ranked queue.
+- **Explore topics** fetches global popular public feeds and current trending topics. Search feed names or use **More topics** to page through the public catalogue. Select a result to fetch its posts into the local snapshot and open that topic.
+- **Fetch fresh posts** refreshes the selected topic, or all cached topics when **All topics** is selected. Existing personal feedback survives refreshes. A failed fetch keeps the previous snapshot.
+- **Yes / No / No vote** records a separate opinion about wider reach; it never changes your personal feed or performs an action on Bluesky.
+
+The thumbstick works with mouse, pen, and touch. Each axis stores a continuous value from −2 to +2; the center is neutral and diagonal gestures can reach both extremes. Keyboard: arrows adjust, Shift makes larger adjustments, releasing the last adjustment key saves, Home centers, and Escape cancels a movement in progress. Native sliders under **Controls** provide an alternative. Cancelled touches or focus loss do not save an unfinished gesture.
+
+## Real post sources
+
+`bluesky-cache.json` contains public post text, author attribution, original dates, image URLs and alt text, source feed membership, and links to the original posts. Text is displayed as plain text. Open **Bluesky ↗** for the current original and full context. The snapshot may include older posts; it is not a live mirror and does not automatically track later edits or deletions.
+
+The local Node server reads the public AppView at `https://public.api.bsky.app` using `app.bsky.unspecced.getPopularFeedGenerators`, `app.bsky.unspecced.getTrendingTopics`, and `app.bsky.feed.getFeed`. No login or private feeds are used. Requests are bounded, spaced, and run at most two at a time. Imports deduplicate post IDs, exclude replies and actively labeled content, and may return partial results when a source is unavailable or the page cap is reached. The local catalogue keeps up to 6,000 posts, interleaving topics; refreshes replace the selected sources and preserve other cached topics.
+
+**Global discovery is not an exhaustive index of every topic or post on Bluesky.** Topics here are public feed names and trending feed links, not semantic classifications. **Explore topics** searches feed names; **Search loaded posts** searches the text of the local snapshot. A post appearing in several feeds is counted once and assigned to one source topic. Upstream feeds have their own selection rules. The demo's own ranking does not use Bluesky likes or popularity counts. It uses explicit feedback and locally measured visible time as described below.
+
+## Signals and storage
+
+Browser `localStorage`, key `relevance.v1`, stores explicit `choices` and separate `views` by post ID (real posts use their AT URI). Optional `settings` store `dwellCap` (default 10), `maxWeight` (default 2), `feeling` (default `both`), and `decayDays` (default 14). Older saved choices remain compatible. For example, the choice portion is:
+
+```json
+{
+  "version": 1,
+  "choices": {
+    "world-floods": {
+      "reaction": -2,
+      "feed": 2,
+      "reach": null,
+      "personal": true,
+      "topic": "World",
+      "updatedAt": 1790668800000
+    }
+  }
+}
+```
+
+| Field | Meaning and use |
+| --- | --- |
+| `reaction` | −2 strongly dislike to +2 strongly like. The selected feeling mode decides whether a positive More answer counts. A dislike never silently becomes Less. |
+| `feed` | −2 much less to +2 much more. Updates the preference for that source topic. |
+| `reach` | `"yes"`, `"no"`, or `null`. A separate, local opinion about wider distribution. Never affects personal ranking. |
+| `personal` | Whether personal feedback was explicitly confirmed. Reach-only votes do not silently add a neutral feed response. |
+| `updatedAt` | Epoch milliseconds of the last explicitly confirmed personal answer. Reconfirming it renews its influence. |
+| `topic` | Stable source feed AT URI for real posts, or topic name for examples. Preserves the preference even if the original post leaves the snapshot. |
+
+```text
+weight = 1 + min(viewSeconds, timeCap) / timeCap × (maxWeight − 1)
+freshness = max(0, 1 − ageInDays / decayDays)
+signal = feed × weight × freshness
+score = baseScore + 20 × mean(signal for the topic)
+```
+
+Every real Bluesky post starts at **70**. The following examples describe a freshly confirmed answer. With no recorded view time, a topic preference of +2 makes its score **110**; −2 makes it **30**. At the default 10-second cap, its weight is 2×: those scores become **150** and **−10**. Scores can be negative. Positive signals outside the selected feeling mode count as zero; negative signals always apply. A centered feed answer contributes zero, however long the post was viewed. Time-only and reach-only records do not enter the topic mean. New posts inherit topic scores; this demo does not predict their emotional content. Higher scores rank first, with ties preserving the original mixed order. Scores are points, not percentages. The visible rule and each recommendation's base/adjustment expose the calculation.
+
+Preferences fade linearly toward neutral over **14 days** by default: 100% influence when saved, 50% after 7 days, and zero after 14 days. Both More and Less fade; raw reaction/feed values and independent reach votes remain saved. Each answer has its own timestamp. The topic mean keeps its original response count, so fading cannot be canceled out by renormalizing the weights. Changing the duration recalculates influence from the original timestamps; extending it can make older answers relevant again.
+
+A new explicit gesture, even to the same position, renews that answer. View-time updates, reach votes, settings changes, and page reloads never renew it. Undo restores the prior answer and its prior timestamp. Existing saved personal choices without dates start their fade on the first load of this version, and that migration is saved once. Scores are recalculated on interaction, on returning to the page, and once a minute while it is visible; no background service is needed while the site is closed.
+
+A view record has the form `{ "seconds": 7, "topic": "World" }`. Only the longest whole-second interval is stored, up to the cap active during measurement. Lowering the cap limits scoring and display without deleting a previously measured longer interval. Settings and view records stay in the browser.
+
+Editing a response replaces its prior values. Neutral feed feedback counts as zero. Reading time alone records interest but never boosts recommendations: only an explicit More or Less answer gives it a ranking effect. Reaction, feed preference, and reach are never inferred from one another, clicks, reading time, or watch time. The app performs no posting, liking, sharing, reporting, moderation, or public vote aggregation. Feedback never leaves the browser; only public content requests go to Bluesky.
+
+Choices are specific to this browser and origin (including its port). Unavailable browser storage falls back to memory with a warning. Undo and navigation history are session-only. Feedback/settings undo preserves independently measured view time. **Reset demo** clears choices, view records, and mix settings with undo; it leaves cached public posts intact.
+
+## Files and checks
+
+- `index.html`, `styles.css`, `app.mjs`: UI, interactions, discovery, and local choices.
+- `core.mjs`: validated choices, view records, settings, and scoring.
+- `dwell.mjs`: monotonic longest-view timer with a configurable cap.
+- `bluesky.mjs`, `bluesky-cache.json`: public API importer and real snapshot.
+- `data.mjs`: fictional examples and original SVG artwork.
+- `server.mjs`: loopback server, discovery proxy, and atomic snapshot refresh.
+- `tests/*.test.mjs`: focused ranking, persistence, importer, and input-validation tests.
+
+```sh
+npm test
+```
+
+Touch checks use browser emulation, not a physical-device or screen-reader certification.

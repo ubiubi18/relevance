@@ -1,0 +1,18 @@
+# Credentials and local configuration
+.env
+.env.*
+*.pem
+*.key
+credentials*.json
+secrets*.json
+
+# Dependencies, logs, and local tooling
+node_modules/
+*.log
+*.tmp
+.DS_Store
+.codex/
+.playwright-cli/
+playwright-report/
+test-results/
+work/

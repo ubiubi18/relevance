@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f7f4">
+  <meta name="description" content="A feed that asks. Relevance separates how you feel from what you want to see.">
+  <title>Relevance — Your feed. Your call.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%236355aa'/%3E%3Cpath d='M10 20h20M20 10v20' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#current-post">Skip to feed</a>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Relevance home"><span class="brand-mark" aria-hidden="true"><span></span></span>relevance<span class="brand-period">.</span></a>
+      <span class="demo-tag"><span></span> DevDay demo</span>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">A feed that asks.</p>
+        <h1 id="page-title">Your feed. <span>Your call.</span></h1>
+        <p class="intro-copy">Liking something and wanting more of it are two different things.<br class="desktop-break"> Give both answers in one gesture.</p>
+      </section>
+      <form id="post-search-form" class="post-search" role="search" aria-label="Search loaded posts">
+        <input id="post-search" type="search" placeholder="Search loaded posts…" aria-label="Search post text or author" autocomplete="off" maxlength="200">
+        <button id="clear-search" type="button" aria-label="Clear search" hidden>×</button>
+      </form>
+      <div class="feed-tools">
+        <div class="feed-selects"><select id="source-select" aria-label="Post source"><option value="bluesky">Bluesky</option><option value="demo">Example posts</option></select><select id="topic-select" aria-label="Filter by topic"><option value="">All topics</option></select></div>
+        <div class="feed-actions"><button id="refresh-posts" class="compact-button">Fetch fresh posts <span aria-hidden="true">↻</span></button><button id="browse-topics" class="text-button" aria-expanded="false" aria-controls="topic-browser">Explore topics</button></div>
+      </div>
+      <p class="catalog-status" id="catalog-status" role="status">Loading public posts…</p>
+      <section id="topic-browser" class="topic-browser" aria-label="Global Bluesky topic discovery" hidden>
+        <form id="topic-search-form"><input id="topic-search" type="search" placeholder="Search Bluesky feeds" aria-label="Search global Bluesky feeds" maxlength="100"><button class="compact-button" type="submit">Search</button><button class="text-button" id="global-topics" type="button">Global topics</button></form>
+        <p class="discovery-note">Public feeds & trending topics. A sample of Bluesky, not an exhaustive topic index.</p>
+        <p id="discovery-status" role="status" class="catalog-status"></p>
+        <div id="topic-results" class="topic-results"></div>
+        <button id="more-topics" class="text-button" hidden>More topics ↓</button>
+      </section>
+      <div class="feed-layout">
+        <section class="current-feed" aria-labelledby="current-heading">
+          <div class="section-heading"><h2 id="current-heading">In your feed</h2><span class="quiet-label" id="source-label">Bluesky</span></div>
+          <article class="post" id="current-post" tabindex="-1">
+            <div id="post-content">
+            <div class="post-byline"><span class="avatar" id="post-avatar"></span><div class="author-details"><strong id="post-author"></strong><span class="post-handle" id="post-handle"></span><span class="post-meta"><span id="post-topic"></span> <span aria-hidden="true">·</span> <span id="post-time"></span></span></div><a id="original-post" class="original-post" target="_blank" rel="noopener noreferrer" hidden aria-label="Open original post on Bluesky">Bluesky ↗</a></div>
+            <div class="post-art" id="post-art"></div>
+            <div class="post-copy"><p class="image-note" id="post-note" hidden></p><h3 id="post-title"></h3><p id="post-body"></p></div>
+            </div>
+            <div class="response-area">
+              <div class="view-signal"><span>Longest view <output id="view-time">0 / 10s</output></span><span id="view-effect">No feed effect</span><progress id="view-meter" max="10" value="0" aria-label="Recorded time in view"></progress></div>
+              <div id="response-editor">
+                <div class="feedback-layout">
+                  <div class="pad-wrapper">
+                    <span class="axis-label axis-top"><span aria-hidden="true">↑</span> Like</span>
+                    <span class="axis-label axis-left" title="Show me less like this"><span aria-hidden="true">←</span><span>Less</span></span>
+                    <div id="feedback-pad" class="feedback-pad" tabindex="0" role="group" aria-label="Two-dimensional feedback" aria-describedby="pad-help selection-summary">
+                      <span id="feedback-thumb" class="feedback-thumb" aria-hidden="true"></span>
+                    </div>
+                    <span class="axis-label axis-right" title="Show me more like this"><span aria-hidden="true">→</span><span>More</span></span>
+                    <span class="axis-label axis-bottom"><span aria-hidden="true">↓</span> Dislike</span>
+                  </div>
+                  <div class="selection-preview">
+                    <div class="feedback-status"><p class="micro-label" id="preview-label" role="status"></p><button id="undo-response" class="text-button" hidden>Undo</button></div>
+                    <div id="selection-summary" aria-live="polite" aria-atomic="true"><div class="preview-signal"><p class="preview-value"><span class="preview-symbol" id="reaction-symbol" aria-hidden="true">○</span><span id="reaction-preview">Neutral</span></p><span class="signal-meter" aria-hidden="true"><span id="reaction-meter"></span></span></div><div class="preview-signal"><p class="preview-value"><span class="preview-symbol" id="feed-symbol" aria-hidden="true">↔</span><span id="feed-preview">Same mix</span></p><span class="signal-meter" aria-hidden="true"><span id="feed-meter"></span></span></div></div>
+                  </div>
+                </div>
+                <details class="precise-controls"><summary>Controls</summary><p id="pad-help">Drag in any direction; release to save. Arrow keys make small adjustments; hold Shift for larger ones. Releasing the keys saves. Up means like; right means more. Home centers. Esc cancels a movement in progress.</p><label for="reaction-range">How I feel <output id="reaction-output">Neutral</output></label><input type="range" id="reaction-range" min="-2" max="2" step="0.01" value="0" aria-valuetext="I feel neutral"><label for="feed-range">What I see <output id="feed-output">Keep the mix</output></label><input type="range" id="feed-range" min="-2" max="2" step="0.01" value="0" aria-valuetext="Keep the mix"><p>Left/right: show me less/more like this. The center is neutral.</p></details>
+              </div>
+              <fieldset class="reach-vote"><legend>Should this reach more people? <span>Optional</span></legend><div class="reach-row"><div class="segmented"><label><input type="radio" name="reach" value="yes"><span>Yes</span></label><label><input type="radio" name="reach" value="no"><span>No</span></label><label><input type="radio" name="reach" value="none" checked><span>No vote</span></label></div><span class="reach-saved" id="reach-saved">Wider reach · No vote</span></div><p>Separate from your feed.</p></fieldset>
+            </div>
+          </article>
+          <p id="empty-feed" class="empty-feed" hidden>No posts loaded yet. Fetch posts or choose another topic.</p>
+          <div class="post-navigation"><button id="previous-post" class="text-button"><span aria-hidden="true">←</span> Previous</button><span id="post-counter"></span><button id="next-post" class="text-button">Next post <span aria-hidden="true">→</span></button></div>
+        </section>
+        <section class="upcoming" aria-labelledby="up-next-heading">
+          <div class="section-heading"><h2 id="up-next-heading">Up next</h2><span class="live-label"><span></span> Your mix</span></div>
+          <label class="feeling-control" for="feeling-select">More from what I… <select id="feeling-select"><option value="both">Like or dislike (both)</option><option value="like">Like</option><option value="dislike">Dislike</option><option value="neutral">Feel neutral about</option></select></label>
+          <p class="rank-status" id="rank-status" role="status" aria-live="polite">The starting mix. Make it yours.</p>
+          <ol id="recommendations" class="recommendations"></ol>
+          <button id="more-posts" class="text-button" hidden>Show more posts ↓</button>
+          <p class="scoring-rule">Score = base + 20 × weighted topic preference</p>
+          <details class="scoring-details"><summary>How your mix works <span aria-hidden="true">↗</span></summary><div>
+            <div class="mix-settings"><label for="dwell-cap">Time cap <span><input id="dwell-cap" type="number" min="1" max="60" step="1" value="10" required> s</span></label><label for="max-weight">Maximum weight <span><input id="max-weight" type="number" min="1" max="5" step="0.1" value="2" required> ×</span></label><label for="decay-days">Preference fade <span><input id="decay-days" type="number" min="1" max="365" step="1" value="14" required> days</span></label></div>
+            <code>weight = 1 + (time ÷ cap) × (max − 1)<br>fade = max(0, 1 − age ÷ fade days)<br>signal = less/more × weight × fade<br>score = base + 20 × topic mean(signal)</code>
+            <p>Time in view is a rough interest signal, not proof of attention. We keep your longest uninterrupted view, capped at 10 seconds by default. Counting stops when the post leaves view, you switch posts, or this page loses focus. Everything stays on this device.</p>
+            <p>Time alone never requests more. <strong>More</strong> boosts a topic; <strong>Less</strong> lowers it. At the default 10-second cap, either answer has 2× weight. The feeling selector chooses which More answers count: liked, disliked, neutral, or both (all feelings). Less always counts. A centered feed answer has no effect.</p>
+            <p>Each real post starts at 70. We average these signals for each source topic. New posts inherit that topic's score; we do not predict how you will feel about an unseen post. Higher scores rank first; ties keep the original mixed order.</p>
+            <p>Preferences fade evenly toward neutral: half strength halfway through the selected period, no effect at its end. A new gesture renews that answer. Viewing, reloading, and reach votes do not. Your original choices stay saved.</p>
+            <p><strong>Wider reach</strong> is a separate local opinion. No signal is sent to Bluesky. Click counts and Bluesky likes do not enter the score; public source feeds have their own selection rules. This demo never posts, shares, reports, or moderates anything.</p><p id="catalog-provenance"></p>
+          </div></details>
+        </section>
+      </div>
+    </main>
+    <footer><p><span class="local-dot" aria-hidden="true"></span><span id="storage-status">Saved on this device. Just for you.</span></p><button id="reset-demo" class="text-button">Reset demo</button></footer>
+    <p id="storage-error" class="storage-error" role="alert" hidden></p>
+  </div>
+  <div class="toast" id="toast" hidden><span id="toast-message" role="status" aria-live="polite"></span><button id="undo-action">Undo</button><button id="dismiss-toast" aria-label="Dismiss notification">×</button></div>
+</body>
+</html>
