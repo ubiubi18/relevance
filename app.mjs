@@ -1,4 +1,4 @@
-import { STORAGE_KEY, emptyState, parseState, updatePersonal, updateReach, rankPosts, feedbackToPoint, pointToFeedback, settingsFor, updateSettings, updateView, viewWeight, feedSignal, preferenceFreshness } from './core.mjs';
+import { STORAGE_KEY, emptyState, parseState, updatePersonal, updateReach, rankPosts, feedbackToPoint, pointToFeedback, snapFeedback, settingsFor, updateSettings, updateView, feedSignal } from './core.mjs';
 import { posts as examplePosts, artwork } from './data.mjs';
 import { createDwellTimer } from './dwell.mjs';
 
@@ -35,6 +35,9 @@ let seen = new Set();
 let pointerId = null;
 let pointerStart = null;
 let pointerOffset = { x: 0, y: 0 };
+let pointerPress = null;
+let lastThumbTap = null;
+let magneticCorner = null;
 const heldKeys = new Set();
 let savedPulse = null;
 
@@ -69,13 +72,10 @@ function stopDwell() { dwellTimer.stop(performance.now()); }
 function renderView() {
   const settings = settingsFor(state);
   const seconds = Math.min(state.views?.[currentId]?.seconds || 0, settings.dwellCap);
-  $('view-time').textContent = `${seconds} / ${settings.dwellCap}s`;
+  $('view-time').textContent = `${seconds.toFixed(1)} / ${settings.dwellCap}s`;
   $('view-meter').max = settings.dwellCap;
   $('view-meter').value = seconds;
-  const signal = feedSignal(state, currentId);
-  const freshness = currentId ? preferenceFreshness(state, currentId) : 0;
-  $('view-effect').textContent = signal === 0 ? 'No feed effect' : `${signal > 0 ? 'More' : 'Less'} ×${formatNumber(viewWeight(state, currentId) * freshness)}`;
-  $('view-effect').title = `${Math.round(freshness * 100)}% of this preference remains`;
+  $('view-status').textContent = seconds >= settings.dwellCap ? 'Capped' : '';
 }
 
 function renderSettings() {
@@ -148,6 +148,8 @@ function notify(message, previous) {
 }
 
 function resetDraft() {
+  magneticCorner = null;
+  lastThumbTap = null;
   const saved = choice();
   draft = { reaction: saved.reaction, feed: saved.feed };
   renderPreview();
@@ -163,8 +165,9 @@ function renderPreview() {
   $('reaction-meter').style.width = `${Math.abs(draft.reaction) * 50}%`;
   $('feed-meter').style.width = `${Math.abs(draft.feed) * 50}%`;
   $('feedback-pad').classList.toggle('active', draft.feed !== 0 || draft.reaction !== 0);
-  $('reaction-preview').textContent = draft.reaction > 0 ? 'Like' : draft.reaction < 0 ? 'Dislike' : 'Neutral';
-  $('feed-preview').textContent = draft.feed > 0 ? 'More' : draft.feed < 0 ? 'Less' : 'Same mix';
+  $('feedback-pad').classList.toggle('snapped', Math.abs(draft.reaction) === 2 && Math.abs(draft.feed) === 2);
+  $('reaction-preview').textContent = (draft.reaction > 0 ? 'Like' : draft.reaction < 0 ? 'Dislike' : 'Neutral') + (Math.abs(draft.reaction) === 2 ? ' 100%' : '');
+  $('feed-preview').textContent = (draft.feed > 0 ? 'More' : draft.feed < 0 ? 'Less' : 'Same mix') + (Math.abs(draft.feed) === 2 ? ' 100%' : '');
   $('reaction-symbol').textContent = draft.reaction > 0 ? '↑' : draft.reaction < 0 ? '↓' : '○';
   $('feed-symbol').textContent = draft.feed > 0 ? '→' : draft.feed < 0 ? '←' : '↔';
   $('reaction-range').value = draft.reaction;
@@ -181,6 +184,8 @@ function renderReach() {
   const reach = choice().reach || 'none';
   document.querySelector(`input[name="reach"][value="${reach}"]`).checked = true;
   $('reach-saved').textContent = `Wider reach · ${reachLabels[reach]}`;
+  $('feedback-pad').classList.toggle('reach-yes', reach === 'yes');
+  $('feedback-pad').title = choice().personal ? 'Double-click or double-tap for wider reach' : 'Slide and release to save';
 }
 
 function renderRecommendations(message) {
@@ -283,6 +288,7 @@ function savePersonal() {
   const previous = state;
   state = updatePersonal(state, currentId, draft.reaction, draft.feed, currentPost().topic);
   const stored = persist();
+  renderReach();
   renderView();
   renderRecommendations();
   undoState = previous;
@@ -293,8 +299,8 @@ function savePersonal() {
   showSaved(stored);
 }
 
-function showSaved(stored) {
-  $('preview-label').textContent = stored ? '✓ Saved' : 'Set for this session';
+function showSaved(stored, message = '✓ Saved') {
+  $('preview-label').textContent = stored ? message : 'Set for this session';
   savedPulse?.cancel();
   if (stored && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     savedPulse = $('feedback-pad').animate([
@@ -311,12 +317,16 @@ function cancelDraft() {
 }
 
 function updatePointer(event) {
+  if (Math.hypot(event.clientX - pointerPress.x, event.clientY - pointerPress.y) > 4) pointerPress.moved = true;
+  if (pointerPress.onThumb && !pointerPress.moved) return;
   const bounds = $('feedback-pad').getBoundingClientRect();
   const extent = ($('feedback-pad').clientWidth - $('feedback-thumb').offsetWidth - 8) / 2;
-  draft = pointToFeedback(
+  const raw = pointToFeedback(
     (event.clientX - pointerOffset.x - bounds.left - bounds.width / 2) / extent,
     (bounds.top + bounds.height / 2 - event.clientY + pointerOffset.y) / extent
   );
+  draft = snapFeedback(raw, magneticCorner);
+  magneticCorner = Math.abs(draft.reaction) === 2 && Math.abs(draft.feed) === 2 ? draft : null;
   renderPreview();
 }
 
@@ -328,19 +338,37 @@ $('feedback-pad').addEventListener('pointerdown', (event) => {
   const thumb = $('feedback-thumb').getBoundingClientRect();
   const offsetX = event.clientX - thumb.left - thumb.width / 2;
   const offsetY = event.clientY - thumb.top - thumb.height / 2;
-  pointerOffset = Math.hypot(offsetX, offsetY) <= thumb.width / 2 ? { x: offsetX, y: offsetY } : { x: 0, y: 0 };
+  const onThumb = Math.hypot(offsetX, offsetY) <= thumb.width / 2;
+  pointerOffset = onThumb ? { x: offsetX, y: offsetY } : { x: 0, y: 0 };
+  pointerPress = { x: event.clientX, y: event.clientY, at: performance.now(), onThumb, moved: false, hadPersonal: choice().personal, postId: currentId };
+  magneticCorner = null;
   $('feedback-pad').focus({ preventScroll: true });
   $('feedback-pad').setPointerCapture(pointerId);
   $('feedback-pad').classList.add('dragging');
   updatePointer(event);
+  renderPreview();
 });
 $('feedback-pad').addEventListener('pointermove', (event) => { if (event.pointerId === pointerId) updatePointer(event); });
 $('feedback-pad').addEventListener('pointerup', (event) => {
   if (event.pointerId !== pointerId) return;
   updatePointer(event);
+  const press = pointerPress;
+  const tap = press.onThumb && !press.moved && performance.now() - press.at <= 350;
   pointerId = null;
   pointerStart = null;
+  pointerPress = null;
   $('feedback-pad').classList.remove('dragging');
+  if (tap && press.hadPersonal) {
+    renderPreview();
+    const now = performance.now();
+    if (lastThumbTap && lastThumbTap.postId === currentId && now - lastThumbTap.at <= 400 &&
+      Math.hypot(event.clientX - lastThumbTap.x, event.clientY - lastThumbTap.y) <= 16) {
+      lastThumbTap = null;
+      saveReach('yes', true);
+    } else lastThumbTap = { at: now, x: event.clientX, y: event.clientY, postId: currentId };
+    return;
+  }
+  lastThumbTap = null;
   savePersonal();
 });
 function cancelPointer(event) {
@@ -348,12 +376,16 @@ function cancelPointer(event) {
   if (pointerStart) draft = pointerStart;
   pointerId = null;
   pointerStart = null;
+  pointerPress = null;
+  magneticCorner = null;
+  lastThumbTap = null;
   $('feedback-pad').classList.remove('dragging');
   renderPreview();
 }
 $('feedback-pad').addEventListener('pointercancel', cancelPointer);
 $('feedback-pad').addEventListener('lostpointercapture', cancelPointer);
 $('feedback-pad').addEventListener('keydown', (event) => {
+  lastThumbTap = null;
   const deltas = { ArrowUp: ['reaction', 0.1], ArrowDown: ['reaction', -0.1], ArrowRight: ['feed', 0.1], ArrowLeft: ['feed', -0.1] };
   if (deltas[event.key]) {
     event.preventDefault();
@@ -365,6 +397,8 @@ $('feedback-pad').addEventListener('keydown', (event) => {
     event.preventDefault(); heldKeys.add(event.key); draft = { reaction: 0, feed: 0 }; renderPreview();
   } else if (event.key === 'Escape') {
     event.preventDefault(); cancelDraft();
+  } else if (event.key === 'Enter' && !event.repeat && pointerId === null && !heldKeys.size && choice().personal) {
+    event.preventDefault(); saveReach('yes', true);
   }
 });
 function finishKey(event) {
@@ -373,7 +407,7 @@ function finishKey(event) {
 }
 $('feedback-pad').addEventListener('keyup', finishKey);
 $('feedback-pad').addEventListener('blur', () => { if (heldKeys.size) cancelDraft(); });
-window.addEventListener('blur', () => { if (pointerId !== null || heldKeys.size) cancelDraft(); });
+window.addEventListener('blur', () => { lastThumbTap = null; if (pointerId !== null || heldKeys.size) cancelDraft(); });
 for (const axis of ['reaction', 'feed']) {
   const range = $(`${axis}-range`);
   range.addEventListener('input', (event) => { draft[axis] = Number(event.target.value); renderPreview(); });
@@ -385,13 +419,22 @@ for (const axis of ['reaction', 'feed']) {
   range.addEventListener('keyup', finishKey);
   range.addEventListener('blur', () => { if (heldKeys.size) cancelDraft(); });
 }
-document.querySelectorAll('input[name="reach"]').forEach((input) => input.addEventListener('change', () => {
+function saveReach(reach, shortcut = false) {
+  if (choice().reach === reach) return;
   const previous = state;
-  state = updateReach(state, currentId, input.value === 'none' ? null : input.value);
-  persist();
+  state = updateReach(state, currentId, reach);
+  const stored = persist();
   renderReach();
-  notify(`Wider reach: ${reachLabels[input.value]}. Your feed is unchanged.`, previous);
-}));
+  if (shortcut) {
+    undoState = previous;
+    undoPostId = currentId;
+    undoResetsViews = false;
+    $('undo-response').hidden = false;
+    $('toast').hidden = true;
+    showSaved(stored, '✓ Wider reach');
+  } else notify(`Wider reach: ${reachLabels[reach || 'none']}. Your feed is unchanged.`, previous);
+}
+document.querySelectorAll('input[name="reach"]').forEach((input) => input.addEventListener('change', () => saveReach(input.value === 'none' ? null : input.value)));
 function undoLatest() {
   if (!undoState) return;
   stopDwell();

@@ -61,7 +61,7 @@ function copyChoice(choice) {
 export function settingsFor(state) {
   const saved = state.settings || {};
   return {
-    dwellCap: Number.isInteger(saved.dwellCap) && saved.dwellCap >= 1 && saved.dwellCap <= 60 ? saved.dwellCap : DEFAULT_SETTINGS.dwellCap,
+    dwellCap: Number.isInteger(saved.dwellCap) && saved.dwellCap >= 1 && saved.dwellCap <= 10 ? saved.dwellCap : DEFAULT_SETTINGS.dwellCap,
     maxWeight: Number.isFinite(saved.maxWeight) && saved.maxWeight >= 1 && saved.maxWeight <= 5 ? saved.maxWeight : DEFAULT_SETTINGS.maxWeight,
     feeling: ['both', 'like', 'dislike', 'neutral'].includes(saved.feeling) ? saved.feeling : DEFAULT_SETTINGS.feeling,
     decayDays: Number.isInteger(saved.decayDays) && saved.decayDays >= 1 && saved.decayDays <= 365 ? saved.decayDays : DEFAULT_SETTINGS.decayDays,
@@ -74,7 +74,7 @@ function extraState(state) {
     extra.views = {};
     for (const [id, view] of Object.entries(state.views)) {
       if (isSafeId(id) && isPlainObject(view) && Number.isFinite(view.seconds) && view.seconds >= 0 && view.seconds <= 60 && typeof view.topic === 'string' && view.topic.length > 0 && view.topic.length <= 2048) {
-        extra.views[id] = { seconds: view.seconds, topic: view.topic };
+        extra.views[id] = { seconds: Math.min(view.seconds, 10), topic: view.topic };
       }
     }
   }
@@ -125,7 +125,7 @@ export function updateView(state, id, seconds, topic) {
   if (!Number.isFinite(seconds) || seconds < 0 || seconds > 60) throw new RangeError('View time must be between 0 and 60 seconds');
   if (typeof topic !== 'string' || !topic.length || topic.length > 2048) throw new TypeError('Invalid topic');
   const next = copyState(state);
-  next.views = { ...next.views, [key]: { seconds: Math.max(next.views?.[key]?.seconds || 0, seconds), topic } };
+  next.views = { ...next.views, [key]: { seconds: Math.min(10, Math.max(next.views?.[key]?.seconds || 0, seconds)), topic } };
   return next;
 }
 
@@ -205,6 +205,18 @@ export function pointToFeedback(x, y) {
   if (max === 0) return { reaction: 0, feed: 0 };
   const radius = Math.min(Math.hypot(x, y), 1);
   return { reaction: 2 * (y / max) * radius, feed: 2 * (x / max) * radius };
+}
+
+export function snapFeedback(feedback, previous = null) {
+  const { reaction, feed } = feedback;
+  if (!isRating(reaction) || !isRating(feed)) throw new RangeError('Invalid feedback');
+  // Enter only near a diagonal extreme; release farther away to avoid jitter.
+  const holding = previous && Math.abs(previous.reaction) === 2 && Math.abs(previous.feed) === 2 &&
+    Math.sign(previous.reaction) === Math.sign(reaction) && Math.sign(previous.feed) === Math.sign(feed);
+  const threshold = holding ? 1.64 : 1.8;
+  return Math.abs(reaction) >= threshold && Math.abs(feed) >= threshold
+    ? { reaction: Math.sign(reaction) * 2, feed: Math.sign(feed) * 2 }
+    : { reaction, feed };
 }
 
 export function updateReach(state, id, reach) {

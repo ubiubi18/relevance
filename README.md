@@ -22,12 +22,13 @@ The server listens on this computer only. The included JSON snapshot works witho
 
 - Choose **Bluesky** or **Example posts**, then **All topics** or a specific topic.
 - **Search loaded posts** filters post text, titles, and authors as you type. Multiple terms must all match, regardless of case. Search combines with the topic filter; **×** clears it. It searches the local collection and does not send your query or change your feed preferences.
-- Slide down/right for **Dislike + More**, or up/left for **Like + Less**. The preview follows continuously. Releasing saves, briefly pulses the stick, and immediately reranks **Up next**. **Undo** reverses the latest change.
-- **Longest view** records the longest uninterrupted view of a post, up to 10 seconds by default. At least half of its content (or half the viewport for a tall post) must remain visible while the page is visible and focused. Scrolling away, switching posts, hiding the tab, or losing focus ends that interval; short revisits do not accumulate. The seconds are an interest proxy, not proof of attention.
-- **More from what I…** selects Like, Dislike, Both, or Neutral. It chooses which positive More responses count; Less always counts. Both includes all feelings, including neutral. The time cap (1–60 seconds), maximum weight (1–5×), and preference fade (1–365 days, default 14) are editable under **How your mix works**.
+- Slide down/right for **Dislike + More**, or up/left for **Like + Less**. The preview follows continuously, with gentle magnetic snapping near all four diagonal extremes (100% on both axes). Moving away releases the snap. Releasing saves, briefly pulses the stick, and immediately reranks **Up next**. **Undo** reverses the latest change.
+- **Time viewed** accumulates visible time per post with millisecond precision, displayed in tenths of a second and capped at 10 seconds. At least half of its content (or half the viewport for a tall post) must remain visible while the page is visible and focused. Scrolling away, switching posts, hiding the tab, or losing focus pauses counting; returning resumes from the saved total. A short 125 ms glance counts as 0.125 seconds. Minutes or hours on the same post cannot exceed the cap. The seconds are an interest proxy, not proof of attention.
+- **More from what I…** selects Like, Dislike, Both, or Neutral. It chooses which positive More responses count; Less always counts. Both includes all feelings, including neutral. The time cap (1–10 seconds), maximum weight (1–5×), and preference fade (1–365 days, default 14) are editable under **How your mix works**.
 - **Next post** opens the highest-scoring unvisited post. **Show more posts** expands the ranked queue.
 - **Explore topics** fetches global popular public feeds and current trending topics. Search feed names or use **More topics** to page through the public catalogue. Select a result to fetch its posts into the local snapshot and open that topic.
 - **Fetch fresh posts** refreshes the selected topic, or all cached topics when **All topics** is selected. Existing personal feedback survives refreshes. A failed fetch keeps the previous snapshot.
+- After saving a personal choice, **double-click or double-tap the thumbstick** to set **Wider reach: Yes**. It keeps both personal axes and their decay timestamp intact, shows a small ↗ marker, and supports Undo. Keyboard: focus the thumbstick and press Enter. An ordinary tap on the saved thumbstick leaves the personal answer unchanged.
 - **Yes / No / No vote** records a separate opinion about wider reach; it never changes your personal feed or performs an action on Bluesky.
 
 The thumbstick works with mouse, pen, and touch. Each axis stores a continuous value from −2 to +2; the center is neutral and diagonal gestures can reach both extremes. Keyboard: arrows adjust, Shift makes larger adjustments, releasing the last adjustment key saves, Home centers, and Escape cancels a movement in progress. Native sliders under **Controls** provide an alternative. Cancelled touches or focus loss do not save an unfinished gesture.
@@ -66,7 +67,7 @@ Browser `localStorage`, key `relevance.v1`, stores explicit `choices` and separa
 | `feed` | −2 much less to +2 much more. Updates the preference for that source topic. |
 | `reach` | `"yes"`, `"no"`, or `null`. A separate, local opinion about wider distribution. Never affects personal ranking. |
 | `personal` | Whether personal feedback was explicitly confirmed. Reach-only votes do not silently add a neutral feed response. |
-| `updatedAt` | Epoch milliseconds of the last explicitly confirmed personal answer. Reconfirming it renews its influence. |
+| `updatedAt` | Epoch milliseconds of the last explicitly confirmed personal answer. Confirming a new slider gesture renews its influence; the wider-reach shortcut does not. |
 | `topic` | Stable source feed AT URI for real posts, or topic name for examples. Preserves the preference even if the original post leaves the snapshot. |
 
 ```text
@@ -80,9 +81,9 @@ Every real Bluesky post starts at **70**. The following examples describe a fres
 
 Preferences fade linearly toward neutral over **14 days** by default: 100% influence when saved, 50% after 7 days, and zero after 14 days. Both More and Less fade; raw reaction/feed values and independent reach votes remain saved. Each answer has its own timestamp. The topic mean keeps its original response count, so fading cannot be canceled out by renormalizing the weights. Changing the duration recalculates influence from the original timestamps; extending it can make older answers relevant again.
 
-A new explicit gesture, even to the same position, renews that answer. View-time updates, reach votes, settings changes, and page reloads never renew it. Undo restores the prior answer and its prior timestamp. Existing saved personal choices without dates start their fade on the first load of this version, and that migration is saved once. Scores are recalculated on interaction, on returning to the page, and once a minute while it is visible; no background service is needed while the site is closed.
+A new explicit slider movement, even back to the same position, renews that answer. Stationary taps on an already saved thumbstick are reserved for the double-tap reach shortcut and do not renew it. View-time updates, reach votes, settings changes, and page reloads never renew it. Undo restores the prior answer and its prior timestamp. Existing saved personal choices without dates start their fade on the first load of this version, and that migration is saved once. Scores are recalculated on interaction, on returning to the page, and once a minute while it is visible; no background service is needed while the site is closed.
 
-A view record has the form `{ "seconds": 7, "topic": "World" }`. Only the longest whole-second interval is stored, up to the cap active during measurement. Lowering the cap limits scoring and display without deleting a previously measured longer interval. Settings and view records stay in the browser.
+A view record has the form `{ "seconds": 7.125, "topic": "World" }`. The accumulated visible time is stored up to the cap active during measurement, with a hard maximum of 10 seconds. Existing whole-second records become the starting total; older records/settings above 10 seconds are capped during loading. Lowering the cap limits scoring and display without deleting time already recorded within the 10-second maximum. Settings and view records stay in the browser.
 
 Editing a response replaces its prior values. Neutral feed feedback counts as zero. Reading time alone records interest but never boosts recommendations: only an explicit More or Less answer gives it a ranking effect. Reaction, feed preference, and reach are never inferred from one another, clicks, reading time, or watch time. The app performs no posting, liking, sharing, reporting, moderation, or public vote aggregation. Feedback never leaves the browser; only public content requests go to Bluesky.
 
@@ -92,7 +93,7 @@ Choices are specific to this browser and origin (including its port). Unavailabl
 
 - `index.html`, `styles.css`, `app.mjs`: UI, interactions, discovery, and local choices.
 - `core.mjs`: validated choices, view records, settings, and scoring.
-- `dwell.mjs`: monotonic longest-view timer with a configurable cap.
+- `dwell.mjs`: monotonic cumulative visible-time timer, with fractional seconds and a maximum 10-second cap.
 - `bluesky.mjs`, `bluesky-cache.json`: public API importer and real snapshot.
 - `data.mjs`: fictional examples and original SVG artwork.
 - `server.mjs`: loopback server, discovery proxy, and atomic snapshot refresh.

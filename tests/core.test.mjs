@@ -16,6 +16,7 @@ import {
   preferenceFreshness,
   feedbackToPoint,
   pointToFeedback,
+  snapFeedback,
 } from '../core.mjs';
 
 const NOW = Date.UTC(2026, 8, 29);
@@ -239,7 +240,7 @@ test('time weights explicit More and Less continuously and caps the contribution
   assert.equal(rankPosts(posts, state)[0].score, 110);
   assert.equal(rankPosts(posts, updatePersonal(state, 'a', 2, -1))[0].score, 30);
   assert.equal(rankPosts(posts, updatePersonal(state, 'a', -2, 2))[0].score, 150);
-  assert.equal(updateView(state, 'a', 2, 'science').views.a.seconds, 30);
+  assert.equal(updateView(state, 'a', 2, 'science').views.a.seconds, 10);
 });
 
 test('feeling modes select More signals while every Less signal remains effective', () => {
@@ -256,7 +257,7 @@ test('feeling modes select More signals while every Less signal remains effectiv
 });
 
 test('view records and settings persist through independent choice updates and older state loads', () => {
-  let state = updateSettings(updateView(emptyState(), 'a', 5, 'science'), { dwellCap: 20, maxWeight: 3, feeling: 'dislike' });
+  let state = updateSettings(updateView(emptyState(), 'a', 2.5, 'science'), { dwellCap: 10, maxWeight: 3, feeling: 'dislike' });
   state = updateReach(updatePersonal(state, 'a', -1, 1, 'science'), 'a', 'no');
   assert.deepEqual(parseState(JSON.stringify(state)), state);
   assert.equal(viewWeight(state, 'a'), 1.5);
@@ -264,7 +265,7 @@ test('view records and settings persist through independent choice updates and o
   const invalid = parseState(JSON.stringify({ version: 1, choices: {}, views: { a: { seconds: -1, topic: 'science' }, constructor: { seconds: 5, topic: 'science' } }, settings: { dwellCap: -10, maxWeight: 999, feeling: 'angry' } }));
   assert.deepEqual(invalid.views, {});
   assert.deepEqual(settingsFor(invalid), settingsFor(emptyState()));
-  for (const settings of [{ dwellCap: 0 }, { dwellCap: 2.5 }, { maxWeight: 6 }, { feeling: 'angry' }, { decayDays: 0 }, { decayDays: 366 }, { decayDays: 2.5 }]) assert.throws(() => updateSettings(state, settings), TypeError);
+  for (const settings of [{ dwellCap: 0 }, { dwellCap: 11 }, { dwellCap: 2.5 }, { maxWeight: 6 }, { feeling: 'angry' }, { decayDays: 0 }, { decayDays: 366 }, { decayDays: 2.5 }]) assert.throws(() => updateSettings(state, settings), TypeError);
   for (const value of [NaN, Infinity, -1, 61]) assert.throws(() => updateView(state, 'a', value, 'science'), RangeError);
   assert.throws(() => updateView(state, '__proto__', 2, 'science'), TypeError);
 });
@@ -343,4 +344,41 @@ test('legacy choices receive one stable migration time and malformed timestamps 
   const fixture = { version: 1, choices: { a: { reaction: 0, feed: 1, reach: null, personal: true, topic: 'science' } } };
   assert.equal(preferenceFreshness(fixture, 'a', NOW + 30 * DAY_MS), 1);
   assert.equal(rankPosts([{ id: 'target', topic: 'science', baseScore: 0 }], fixture, undefined, NOW + 30 * DAY_MS)[0].score, 20);
+});
+
+
+test('diagonal magnets reach all four extremes without quantizing the rest of the pad', () => {
+  for (const reactionSign of [-1, 1]) {
+    for (const feedSign of [-1, 1]) {
+      const corner = { reaction: reactionSign * 2, feed: feedSign * 2 };
+      assert.deepEqual(snapFeedback({ reaction: reactionSign * 1.85, feed: feedSign * 1.9 }), corner);
+      const nearby = { reaction: reactionSign * 1.7, feed: feedSign * 1.8 };
+      assert.deepEqual(snapFeedback(nearby), nearby, 'approach remains continuous outside the entry zone');
+      assert.deepEqual(snapFeedback(nearby, corner), corner, 'small jitter stays latched');
+      const released = { reaction: reactionSign * 1.6, feed: feedSign * 1.9 };
+      assert.deepEqual(snapFeedback(released, corner), released, 'moving away releases the magnet');
+    }
+  }
+  for (const raw of [{ reaction: 0, feed: 0 }, { reaction: 0.623, feed: -1.237 }, { reaction: 2, feed: 0 }, { reaction: 0, feed: 1.999 }]) {
+    assert.deepEqual(snapFeedback(raw), raw);
+  }
+  assert.deepEqual(snapFeedback({ reaction: -1.7, feed: -1.7 }, { reaction: 2, feed: 2 }), { reaction: -1.7, feed: -1.7 });
+});
+
+test('fractional visible time persists and influences only explicit feed choices', () => {
+  const viewed = parseState(JSON.stringify(updateView(emptyState(), 'a', 0.125, 'science')));
+  const posts = [{ id: 'next', topic: 'science', baseScore: 70 }];
+  assert.equal(viewed.views.a.seconds, 0.125);
+  assert.equal(rankPosts(posts, viewed)[0].score, 70);
+  const personal = updatePersonal(viewed, 'a', -2, 1, 'science');
+  assert.equal(rankPosts(posts, personal)[0].score, 90.25);
+  assert.equal(rankPosts(posts, updateReach(personal, 'a', 'yes'))[0].score, 90.25);
+  assert.equal(rankPosts(posts, updatePersonal(personal, 'a', 2, -1))[0].score, 49.75);
+});
+
+test('legacy view time and cap settings cannot credit more than ten seconds', () => {
+  const state = parseState(JSON.stringify({ version: 1, choices: {}, settings: { dwellCap: 60 }, views: { a: { seconds: 60, topic: 'science' } } }));
+  assert.equal(settingsFor(state).dwellCap, 10);
+  assert.equal(state.views.a.seconds, 10);
+  assert.equal(viewWeight(state, 'a'), 2);
 });
