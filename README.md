@@ -1,12 +1,30 @@
+![Comic about liking cats and lingering on scary snakes, while a feed mistakes both signals for wanting more](docs/relevance-comic.png)
+
 # Relevance
 
-A local, dependency-free DevDay proof of concept: real public Bluesky posts, a continuous two-axis thumbstick, and a feed that responds to your explicit choices. Includes a snapshot of more than 3,000 real posts across 22 topics, plus nine fictional examples. No account, API key, or build step.
+**Stop blaming society. Your Feed. Your Call.**
+
+We like cats 👍. We may stare even longer at a scary snake from a safe distance. A feed that treats a like or a long look as “show me more” can confuse our reactions with our wishes. Soon, we see more of something we never chose.
+
+**Work in progress.** Relevance is an experimental proof of concept for a simple, intuitive relevance button in place of emoji reactions or likes: a continuous thumbstick that lets you say both **how you feel** and **whether you want more or less** of a post. Those answers are independent. You can like something and want less of it, or dislike something and want more. A separate **Wider reach** opinion asks whether others might benefit from seeing it; it does not change your personal feed.
+
+The working local demo uses a snapshot of more than 3,000 public Bluesky posts across 22 topics, plus nine fictional examples. It can fetch more public posts. Your choices stay in this browser's `localStorage` and rerank the local feed. Visible time can add weight to an explicit choice, capped at 10 seconds; it never creates a preference by itself. The default influence of a personal choice fades to zero over 14 days, and you can edit that duration. No account, API key, or build step is needed. This is a proof of concept, not a production-ready feed.
+
+The next step is to keep developing this as a Bluesky proof of concept: use stored personal reactions and preferences to improve your own feed, and explore more expressive relevance and shareworthiness signals than engagement alone. An opt-in exchange of preference signals among people you follow could be explored, possibly using peer-to-peer storage such as IPFS; no sharing system or storage design has been chosen or implemented. These shared signals could fade over 14–30 days, keeping their influence temporary as people’s interests change. Fading influence does not delete shared data. Any future sharing would need explicit consent, visibility, and retention controls.
+
+Let’s reshape social UX for good, together.
+
+## Example
+
+<img src="docs/example-screen.png" alt="Relevance demo with a fictional flood-response post, Dislike + More selected, a separate Yes vote for wider reach, and the reranked Up next feed" width="900" style="max-width: 100%; height: auto;">
 
 ## Run
 
-Requires Node.js 20 or later. From this folder:
+Requires Node.js 20 or later:
 
 ```sh
+git clone https://github.com/ubiubi18/relevance.git
+cd relevance
 npm start
 ```
 
@@ -104,3 +122,5 @@ npm test
 ```
 
 Touch checks use browser emulation, not a physical-device or screen-reader certification.
+
+The opening comic was created with OpenAI image generation; its [prompt is included](docs/comic-prompt.txt). The example screen is captured from the running prototype using fictional demo posts.
